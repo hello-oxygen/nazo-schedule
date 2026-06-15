@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>なぞスケジュール - マイページ＆フォロー機能付き</title>
+    <title>なぞスケジュール</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -47,10 +47,10 @@
             </button>
 
             <div class="bg-white p-4 rounded-xl shadow-xs border border-slate-200 space-y-3">
-                <h3 class="text-sm font-semibold text-slate-500">🔍 ユーザー検索</h3>
+                <h3 class="text-sm font-semibold text-slate-500">ユーザー検索</h3>
                 <div class="flex space-x-2">
                     <input type="text" id="input-search-user" class="flex-1 px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-teal-500" placeholder="フォロワーの名前を入力">
-                    <button onclick="searchUserPage()" class="bg-teal-600 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-teal-500 font-medium">見る</button>
+                    <button onclick="searchUserPage()" class="bg-teal-600 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-teal-500 font-medium">🔍</button>
                 </div>
             </div>
 
@@ -193,6 +193,14 @@
         const db = getDatabase(app);
         const eventsRef = ref(db, 'events');
 
+        function getUserKey(name) {
+    return encodeURIComponent(name);
+}
+
+function validateNickname(name) {
+    return /^[a-zA-Z0-9ぁ-んァ-ヶ一-龯ー_-]{2,20}$/.test(name);
+}
+
         let currentNickname = localStorage.getItem('nazo_nickname') || '';
         let targetNickname = currentNickname;
         let currentView = 'list';
@@ -243,7 +251,10 @@
                 return;
             }
 
-            const userRef = ref(db, `users/${searchName}`);
+            const userRef = ref(
+    db,
+    `users/${getUserKey(searchName)}`
+);
             const snapshot = await get(userRef);
 
             if (!snapshot.exists()) {
@@ -410,31 +421,72 @@
         }
 
         window.saveAuth = async function() {
-            const name = document.getElementById('input-nickname').value.trim();
-            const password = document.getElementById('input-password').value.trim();
+                const name = document.getElementById('input-nickname').value.trim();
+    const password = document.getElementById('input-password').value.trim();
 
-            if (!name || !password) return alert('名前と合言葉を両方入力してください');
+    if (!name || !password) {
+        return alert('名前と合言葉を両方入力してください');
+    }
 
-            const userRef = ref(db, `users/${name}`);
-            const snapshot = await get(userRef);
+    if (!name.replace(/\s/g, '')) {
+        return alert('ニックネームを入力してください');
+    }
 
-            if (snapshot.exists()) {
-                if (snapshot.val().password !== password) {
-                    return alert('そのニックネームはすでに使われています。合言葉が間違っています。');
-                }
-            } else {
-                await set(userRef, { password: password, created_at: Date.now() });
+    if (!validateNickname(name)) {
+        return alert(
+            'ニックネームは2〜20文字で、英数字・ひらがな・カタカナ・漢字・_・- のみ使用できます'
+        );
+    }
+
+    try {
+
+        const userKey = getUserKey(name);
+        const userRef = ref(db, `users/${userKey}`);
+
+        const snapshot = await get(userRef);
+
+        if (snapshot.exists()) {
+
+            const userData = snapshot.val();
+
+            if (userData.password !== password) {
+                return alert(
+                    'そのニックネームは既に登録されています。合言葉が違います。'
+                );
             }
 
-            localStorage.setItem('nazo_nickname', name);
-            currentNickname = name;
-            targetNickname = name;
-            document.getElementById('current-user-display').textContent = name;
-            document.getElementById('modal-auth').classList.add('hidden');
-            
-            updateViewingPanel();
-            renderBoard();
-        };
+        } else {
+
+            await set(userRef, {
+                nickname: name,
+                password: password,
+                created_at: Date.now()
+            });
+
+        }
+
+        localStorage.setItem('nazo_nickname', name);
+
+        currentNickname = name;
+        targetNickname = name;
+
+        document.getElementById('current-user-display').textContent = name;
+        document.getElementById('modal-auth').classList.add('hidden');
+
+        updateViewingPanel();
+        renderBoard();
+
+        alert('ログインしました');
+
+    } catch (err) {
+
+        console.error(err);
+
+        alert(
+            'アカウント作成・ログインに失敗しました。\nコンソールを確認してください。'
+        );
+    }
+};
 
         function renderFollowingList() {
             const container = document.getElementById('following-list');
@@ -462,6 +514,9 @@
 
         window.addEvent = function(e) {
             e.preventDefault();
+            if (!currentNickname) {
+        return openAuthModal();
+    }
             const title = document.getElementById('event-title').value;
             const organizer = document.getElementById('event-organizer').value;
             const date = document.getElementById('event-date').value;
