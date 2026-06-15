@@ -1,2 +1,1 @@
 # nazo-schedule
-index.html
