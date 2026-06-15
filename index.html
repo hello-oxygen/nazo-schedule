@@ -23,7 +23,10 @@
                 <div class="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 flex items-center space-x-2">
                     <span class="text-xs text-slate-400">ログイン中:</span>
                     <span id="current-user-display" class="font-medium text-teal-300">ログインしていません</span>
-                    <button onclick="openAuthModal()" class="text-xs text-teal-400 hover:text-teal-300 ml-2 underline font-medium">切替/ログイン</button>
+                    <button onclick="openAuthModal()" class="text-xs text-teal-400 hover:text-teal-300 ml-2 underline font-medium">ログイン/切り替え</button>
+                    <button onclick="logout()" class="text-xs text-red-400 hover:text-red-300 ml-2 underline font-medium">
+    ログアウト
+</button>
                 </div>
             </div>
         </div>
@@ -228,9 +231,17 @@ function validateNickname(name) {
             const nameDisplay = document.getElementById('viewing-user-name');
             const actionArea = document.getElementById('profile-action-area');
             
-            if (targetNickname === currentNickname) {
-                nameDisplay.textContent = "あなたのマイページ";
-                actionArea.innerHTML = '';
+            if (!currentNickname) {
+
+    nameDisplay.textContent = "ログインしてください";
+    actionArea.innerHTML = '';
+
+} else if (targetNickname === currentNickname) {
+
+    nameDisplay.textContent = "あなたのマイページ";
+    actionArea.innerHTML = '';
+
+} else {                actionArea.innerHTML = '';
             } else {
                 nameDisplay.textContent = targetNickname;
                 if (myFollowing.includes(targetNickname)) {
@@ -242,30 +253,41 @@ function validateNickname(name) {
         }
 
         window.searchUserPage = async function() {
-            const searchName = document.getElementById('input-search-user').value.trim();
-            if (!searchName) return;
 
-            if (searchName === currentNickname) {
-                backToMyPage();
-                document.getElementById('input-search-user').value = '';
-                return;
-            }
+    if (!currentNickname) {
+        return openAuthModal();
+    }
 
-            const userRef = ref(
-    db,
-    `users/${getUserKey(searchName)}`
-);
-            const snapshot = await get(userRef);
+    const searchName = document.getElementById('input-search-user').value.trim();
 
-            if (!snapshot.exists()) {
-                return alert(`「${searchName}」というユーザーは見つかりませんでした。`);
-            }
+    if (!searchName) {
+        return;
+    }
 
-            targetNickname = searchName;
-            document.getElementById('input-search-user').value = '';
-            updateViewingPanel();
-            renderBoard();
-        };
+    if (searchName === currentNickname) {
+        backToMyPage();
+        document.getElementById('input-search-user').value = '';
+        return;
+    }
+
+    const userRef = ref(
+        db,
+        `users/${getUserKey(searchName)}`
+    );
+
+    const snapshot = await get(userRef);
+
+    if (!snapshot.exists()) {
+        return alert(`「${searchName}」というユーザーは見つかりませんでした。`);
+    }
+
+    targetNickname = searchName;
+
+    document.getElementById('input-search-user').value = '';
+
+    updateViewingPanel();
+    renderBoard();
+};
 
         window.toggleFollowDirect = function(name) {
             if (myFollowing.includes(name)) {
@@ -584,6 +606,25 @@ function validateNickname(name) {
 
         window.prevMonth = () => { currentDate.setMonth(currentDate.getMonth() - 1); renderCalendarView(); };
         window.nextMonth = () => { currentDate.setMonth(currentDate.getMonth() + 1); renderCalendarView(); };
+        window.logout = function() {
+
+    if (!confirm('ログアウトしますか？')) {
+        return;
+    }
+
+    localStorage.removeItem('nazo_nickname');
+
+    currentNickname = '';
+    targetNickname = '';
+
+    document.getElementById('current-user-display').textContent =
+        'ログインしていません';
+
+    updateViewingPanel();
+    renderBoard();
+
+    openAuthModal();
+};
         function escapeHtml(str) { return str ? str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;') : ''; }
     </script>
 </body>
