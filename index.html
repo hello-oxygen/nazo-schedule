@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>なぞスケジュール - マイページ＆フォロー機能付き</title>
+    <title>なぞスケジュール</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -122,7 +122,10 @@
 
     <div id="modal-auth" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
         <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl">
-            <h3 class="text-lg font-bold text-slate-900 mb-1">マイページにログイン / 作成</h3>
+            <div class="flex justify-between items-center mb-1">
+                <h3 class="text-lg font-bold text-slate-900">マイページにログイン / 作成</h3>
+                <button onclick="closeAuthModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
             <p class="text-slate-500 text-xs mb-4">ニックネームと合言葉（パスワード）を入力してください。同じ合言葉を入れると、別端末からもマイページを同期できます。</p>
             <div class="space-y-3 mb-4">
                 <div>
@@ -177,4 +180,302 @@
     </div>
 
     <script type="module">
-        import { initializeApp } from "
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getDatabase, ref, set, push, onValue, get } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyC25ccFc1wQGABP0bkep1NWsQZlS0hj-AI",
+            authDomain: "nazo-schedule.firebaseapp.com",
+            databaseURL: "https://nazo-schedule-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "nazo-schedule",
+            storageBucket: "nazo-schedule.firebasestorage.app",
+            messagingSenderId: "220327711579",
+            appId: "1:220327711579:web:7b13b8983aaf57b073c07e",
+            measurementId: "G-FTDZ5K0D19"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const eventsRef = ref(db, 'events');
+
+        let currentNickname = localStorage.getItem('nazo_nickname') || '';
+        let currentView = 'list';
+        let currentFilter = 'all';
+        let allEvents = {};
+        let myFollowing = JSON.parse(localStorage.getItem('nazo_following') || '[]');
+        let currentDate = new Date();
+
+        window.addEventListener('DOMContentLoaded', () => {
+            if (!currentNickname) {
+                openAuthModal();
+            } else {
+                document.getElementById('current-user-display').textContent = currentNickname;
+            }
+            renderFollowingTags();
+
+            onValue(eventsRef, (snapshot) => {
+                allEvents = snapshot.val() || {};
+                renderBoard();
+                updateMyStatusSummary();
+            });
+        });
+
+        function renderBoard() {
+            if (currentView === 'list') {
+                renderListView();
+            } else {
+                renderCalendarView();
+            }
+        }
+
+        function renderListView() {
+            const tbody = document.getElementById('schedule-list-tbody');
+            tbody.innerHTML = '';
+
+            const sortedEvents = Object.entries(allEvents).sort((a, b) => new Date(a[1].date + 'T' + (a[1].time || '00:00')) - new Date(b[1].date + 'T' + (b[1].time || '00:00')));
+
+            if (sortedEvents.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="p-8 text-center text-slate-400">登録されている公演はありません。</td></tr>`;
+                return;
+            }
+
+            sortedEvents.forEach(([key, event]) => {
+                const myStatus = (event.participants && event.participants[currentNickname]) ? event.participants[currentNickname] : '';
+                
+                let hasFollowingUser = false;
+                if (event.participants) {
+                    hasFollowingUser = Object.keys(event.participants).some(name => myFollowing.includes(name));
+                }
+
+                if (currentFilter === 'going' && myStatus !== 'going') return;
+                if (currentFilter === 'following' && !hasFollowingUser && myStatus === '') return;
+
+                let membersHtml = '';
+                if (event.participants) {
+                    Object.entries(event.participants).forEach(([name, status]) => {
+                        let badgeColor = 'bg-slate-200 text-slate-700';
+                        if (status === 'going') badgeColor = 'bg-emerald-500 text-white';
+                        if (status === 'recruiting') badgeColor = 'bg-amber-500 text-white';
+                        if (status === 'interested') badgeColor = 'bg-blue-500 text-white';
+                        
+                        const isFollowing = myFollowing.includes(name) ? '⭐ ' : '';
+                        membersHtml += `<span class="inline-block text-xs px-2 py-0.5 rounded-sm font-medium mr-1 ${badgeColor}" title="${name}">${isFollowing}${name}</span>`;
+                    });
+                }
+
+                const row = document.createElement('tr');
+                row.className = "hover:bg-slate-50 transition";
+                row.innerHTML = `
+                    <td class="p-4">
+                        <div class="font-bold text-slate-900">${escapeHtml(event.title)}</div>
+                        <div class="text-xs text-slate-500">${escapeHtml(event.organizer || '不明・その他')}</div>
+                        ${event.memo ? `<div class="text-xs bg-slate-100 text-slate-600 p-2 rounded-lg mt-1 max-w-md"><i class="fa-solid fa-comment text-slate-400 mr-1"></i>${escapeHtml(event.memo)}</div>` : ''}
+                    </td>
+                    <td class="p-4">
+                        <div class="font-medium text-slate-700"><i class="fa-regular fa-calendar mr-1"></i>${event.date} ${event.time || ''}</div>
+                        <div class="text-xs text-slate-500"><i class="fa-solid fa-location-dot mr-1"></i>${escapeHtml(event.location || '未定/オンライン')}</div>
+                    </td>
+                    <td class="p-4">
+                        <div class="flex flex-wrap gap-1">${membersHtml || '<span class="text-xs text-slate-400">参加者なし</span>'}</div>
+                    </td>
+                    <td class="p-4 text-right">
+                        <select onchange="updateStatus('${key}', this.value)" class="text-xs bg-white border border-slate-300 rounded-lg p-1.5 focus:ring-2 focus:ring-teal-500">
+                            <option value="" ${myStatus === '' ? 'selected' : ''}>▼ 参加表明する</option>
+                            <option value="going" ${myStatus === 'going' ? 'selected' : ''}>🟢 行く</option>
+                            <option value="recruiting" ${myStatus === 'recruiting' ? 'selected' : ''}>🟡 メンバー募集中</option>
+                            <option value="interested" ${myStatus === 'interested' ? 'selected' : ''}>🔵 興味あり</option>
+                        </select>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function renderCalendarView() {
+            const grid = document.getElementById('calendar-grid');
+            const title = document.getElementById('calendar-month-title');
+            grid.innerHTML = '';
+
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            title.textContent = `${year}年 ${month + 1}月`;
+
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+            for (let i = 0; i < firstDay; i++) {
+                grid.appendChild(document.createElement('div'));
+            }
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const cell = document.createElement('div');
+                cell.className = "bg-slate-50 border border-slate-100 rounded-lg p-1 text-left min-h-[75px] overflow-y-auto flex flex-col";
+                cell.innerHTML = `<span class="text-xs font-bold text-slate-500">${day}</span>`;
+
+                Object.entries(allEvents).forEach(([key, event]) => {
+                    if (event.date === dayStr) {
+                        const myStatus = (event.participants && event.participants[currentNickname]) ? event.participants[currentNickname] : '';
+                        let hasFollowingUser = false;
+                        if (event.participants) {
+                            hasFollowingUser = Object.keys(event.participants).some(name => myFollowing.includes(name));
+                        }
+
+                        if (currentFilter === 'going' && myStatus !== 'going') return;
+                        if (currentFilter === 'following' && !hasFollowingUser && myStatus === '') return;
+
+                        const evDiv = document.createElement('div');
+                        evDiv.className = `text-[10px] p-0.5 rounded-sm mt-0.5 truncate font-medium ${myStatus ? 'bg-teal-600 text-white' : 'bg-teal-50 text-teal-800'}`;
+                        evDiv.textContent = event.title;
+                        cell.appendChild(evDiv);
+                    }
+                });
+                grid.appendChild(cell);
+            }
+        }
+
+        window.saveAuth = async function() {
+            const name = document.getElementById('input-nickname').value.trim();
+            const password = document.getElementById('input-password').value.trim();
+
+            if (!name || !password) return alert('名前と合言葉を両方入力してください');
+
+            const userRef = ref(db, `users/${name}`);
+            const snapshot = await get(userRef);
+
+            if (snapshot.exists()) {
+                if (snapshot.val().password !== password) {
+                    return alert('そのニックネームはすでに使われています。合言葉が間違っています。');
+                }
+            } else {
+                await set(userRef, { password: password, created_at: Date.now() });
+            }
+
+            localStorage.setItem('nazo_nickname', name);
+            currentNickname = name;
+            document.getElementById('current-user-display').textContent = name;
+            document.getElementById('modal-auth').classList.add('hidden');
+            
+            renderBoard();
+            updateMyStatusSummary();
+        };
+
+        window.followUser = async function() {
+            const targetName = document.getElementById('input-follow-target').value.trim();
+            if (!targetName) return;
+            if (targetName === currentNickname) return alert('自分自身はフォローできません');
+            if (myFollowing.includes(targetName)) return alert('すでにフォローしています');
+
+            const targetRef = ref(db, `users/${targetName}`);
+            const snapshot = await get(targetRef);
+
+            if (!snapshot.exists()) {
+                return alert('入力されたユーザーはまだ登録されていません。');
+            }
+
+            myFollowing.push(targetName);
+            localStorage.setItem('nazo_following', JSON.stringify(myFollowing));
+            document.getElementById('input-follow-target').value = '';
+            renderFollowingTags();
+            renderBoard();
+        };
+
+        window.unfollowUser = function(name) {
+            myFollowing = myFollowing.filter(f => f !== name);
+            localStorage.setItem('nazo_following', JSON.stringify(myFollowing));
+            renderFollowingTags();
+            renderBoard();
+        };
+
+        function renderFollowingTags() {
+            const container = document.getElementById('following-list');
+            container.innerHTML = '';
+            if (myFollowing.length === 0) {
+                container.innerHTML = '<span class="text-xs text-slate-400">誰もフォローしていません</span>';
+                return;
+            }
+            myFollowing.forEach(name => {
+                const tag = document.createElement('span');
+                tag.className = "inline-flex items-center text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-medium border border-slate-200";
+                tag.innerHTML = `⭐ ${name} <button onclick="unfollowUser('${name}')" class="ml-1 text-slate-400 hover:text-red-500 font-bold">×</button>`;
+                container.appendChild(tag);
+            });
+        }
+
+        window.updateStatus = function(eventKey, newStatus) {
+            if (!currentNickname) return openAuthModal();
+            const statusRef = ref(db, `events/${eventKey}/participants/${currentNickname}`);
+            set(statusRef, newStatus || null);
+        };
+
+        window.addEvent = function(e) {
+            e.preventDefault();
+            const title = document.getElementById('event-title').value;
+            const organizer = document.getElementById('event-organizer').value;
+            const date = document.getElementById('event-date').value;
+            const time = document.getElementById('event-time').value;
+            const location = document.getElementById('event-location').value;
+            const memo = document.getElementById('event-memo').value;
+
+            const newEventRef = push(eventsRef);
+            set(newEventRef, {
+                title, organizer, date, time, location, memo,
+                created_at: Date.now()
+            }).then(() => {
+                closeAddModal();
+                document.getElementById('form-add-event').reset();
+            });
+        };
+
+        function updateMyStatusSummary() {
+            let going = 0, recruiting = 0, interested = 0;
+            Object.values(allEvents).forEach(event => {
+                if (event.participants && event.participants[currentNickname]) {
+                    const status = event.participants[currentNickname];
+                    if (status === 'going') going++;
+                    if (status === 'recruiting') recruiting++;
+                    if (status === 'interested') interested++;
+                }
+            });
+            document.getElementById('count-going').textContent = going;
+            document.getElementById('count-recruiting').textContent = recruiting;
+            document.getElementById('count-interested').textContent = interested;
+        }
+
+        // --- ウィンドウ・グローバル関数定義 ---
+        window.openAuthModal = () => document.getElementById('modal-auth').classList.remove('hidden');
+        window.closeAuthModal = () => document.getElementById('modal-auth').classList.add('hidden');
+        window.openAddModal = () => {
+            if (!currentNickname) return openAuthModal();
+            document.getElementById('modal-add').classList.remove('hidden');
+        };
+        window.closeAddModal = () => document.getElementById('modal-add').classList.add('hidden');
+        
+        window.switchView = (view) => {
+            currentView = view;
+            document.getElementById('view-list').classList.toggle('hidden', view !== 'list');
+            document.getElementById('view-calendar').classList.toggle('hidden', view !== 'calendar');
+            document.getElementById('btn-view-list').className = view === 'list' ? "py-1.5 text-sm font-medium rounded-md bg-white text-slate-800 shadow-xs" : "py-1.5 text-sm font-medium rounded-md text-slate-600 hover:text-slate-800";
+            document.getElementById('btn-view-calendar').className = view === 'calendar' ? "py-1.5 text-sm font-medium rounded-md bg-white text-slate-800 shadow-xs" : "py-1.5 text-sm font-medium rounded-md text-slate-600 hover:text-slate-800";
+            renderBoard();
+        };
+
+        window.setFilter = (filter) => {
+            currentFilter = filter;
+            ['all', 'following', 'going'].forEach(f => {
+                const btn = document.getElementById(`filter-${f}`);
+                if (f === filter) {
+                    btn.className = "w-full text-left px-3 py-2 rounded-lg text-sm font-medium bg-teal-50 text-teal-700";
+                } else {
+                    btn.className = "w-full text-left px-3 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50";
+                }
+            });
+            renderBoard();
+        };
+
+        window.prevMonth = () => { currentDate.setMonth(currentDate.getMonth() - 1); renderCalendarView(); };
+        window.nextMonth = () => { currentDate.setMonth(currentDate.getMonth() + 1); renderCalendarView(); };
+        function escapeHtml(str) { return str ? str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;') : ''; }
+    </script>
+</body>
+</html>
