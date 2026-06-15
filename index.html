@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>なぞスケジュール - 謎解き公演スケジュール共有ボード</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;700&display=swap');
+        body { font-family: 'Inter', 'Noto Sans JP', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+    <header class="bg-slate-900 text-white shadow-md sticky top-0 z-40">
+        <div class="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <i class="fa-solid fa-calendar-days text-teal-400 text-2xl"></i>
+                <h1 class="text-xl font-bold tracking-wider">なぞスケジュール</h1>
+            </div>
+            <div class="flex items-center space-x-4">
+                <div class="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 flex items-center space-x-2">
+                    <span class="text-xs text-slate-400">ユーザー名:</span>
+                    <span id="current-user-display" class="font-medium text-teal-300">未設定</span>
+                    <button onclick="openNameModal()" class="text-xs text-slate-400 hover:text-white ml-2 underline">変更</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-6xl w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-4 gap-6">
+        
+        <div class="lg:col-span-1 space-y-4">
+            <button onclick="openAddModal()" class="w-full bg-teal-600 hover:bg-teal-500 text-white font-medium py-3 px-4 rounded-xl shadow-sm transition duration-200 flex items-center justify-center space-x-2">
+                <i class="fa-solid fa-plus"></i>
+                <span>公演を追加する</span>
+            </button>
+
+            <div class="bg-white p-4 rounded-xl shadow-xs border border-slate-200 space-y-3">
+                <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wider">マイステータス</h3>
+                <div class="grid grid-cols-3 gap-2 text-center">
+                    <div class="bg-emerald-50 p-2 rounded-lg border border-emerald-100">
+                        <div class="text-xl font-bold text-emerald-600" id="count-going">0</div>
+                        <div class="text-xs text-emerald-700 font-medium">行く</div>
+                    </div>
+                    <div class="bg-amber-50 p-2 rounded-lg border border-amber-100">
+                        <div class="text-xl font-bold text-amber-600" id="count-recruiting">0</div>
+                        <div class="text-xs text-amber-700 font-medium">募集中</div>
+                    </div>
+                    <div class="bg-blue-50 p-2 rounded-lg border border-blue-100">
+                        <div class="text-xl font-bold text-blue-600" id="count-interested">0</div>
+                        <div class="text-xs text-blue-700 font-medium">興味あり</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl shadow-xs border border-slate-200 space-y-4">
+                <div>
+                    <h3 class="text-sm font-semibold text-slate-500 mb-2">表示モード</h3>
+                    <div class="grid grid-cols-2 gap-2 bg-slate-100 p-1 rounded-lg">
+                        <button id="btn-view-list" onclick="switchView('list')" class="py-1.5 text-sm font-medium rounded-md bg-white text-slate-800 shadow-xs">リスト</button>
+                        <button id="btn-view-calendar" onclick="switchView('calendar')" class="py-1.5 text-sm font-medium rounded-md text-slate-600 hover:text-slate-800">カレンダー</button>
+                    </div>
+                </div>
+                <hr class="border-slate-100">
+                <div>
+                    <h3 class="text-sm font-semibold text-slate-500 mb-2">フィルター</h3>
+                    <div class="space-y-1" id="filter-container">
+                        <button onclick="setFilter('all')" class="w-full text-left px-3 py-2 rounded-lg text-sm font-medium bg-teal-50 text-teal-700" id="filter-all">すべて表示</button>
+                        <button onclick="setFilter('going')" class="w-full text-left px-3 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50" id="filter-going">🟢 行く公演のみ</button>
+                        <button onclick="setFilter('recruiting')" class="w-full text-left px-3 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50" id="filter-recruiting">🟡 メンバー募集中のみ</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="lg:col-span-3 space-y-4">
+            <div id="view-list" class="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                <th class="p-4">公演・団体</th>
+                                <th class="p-4">日時 / 会場</th>
+                                <th class="p-4">参加メンバー</th>
+                                <th class="p-4 text-right">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="schedule-list-tbody" class="divide-y divide-slate-100 text-sm">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="view-calendar" class="bg-white rounded-xl shadow-xs border border-slate-200 p-4 hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 id="calendar-month-title" class="text-lg font-bold text-slate-800">2026年 6月</h2>
+                    <div class="flex space-x-2">
+                        <button onclick="prevMonth()" class="p-2 border border-slate-200 rounded-lg hover:bg-slate-50"><i class="fa-solid fa-chevron-left"></i></button>
+                        <button onclick="nextMonth()" class="p-2 border border-slate-200 rounded-lg hover:bg-slate-50"><i class="fa-solid fa-chevron-right"></i></button>
+                    </div>
+                </div>
+                <div class="grid grid-cols-7 gap-1 text-center font-semibold text-xs text-slate-500 mb-2">
+                    <div class="text-red-500">日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div class="text-blue-500">土</div>
+                </div>
+                <div id="calendar-grid" class="grid grid-cols-7 gap-1 min-h-[400px]">
+                    </div>
+            </div>
+        </div>
+    </main>
+
+    <div id="modal-name" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl transform transition-all">
+            <h3 class="text-lg font-bold text-slate-900 mb-2">ニックネームを設定</h3>
+            <p class="text-slate-500 text-xs mb-4">スケジュール共有ボードで使用する名前を入力してください（後からでも変更可能です）。</p>
+            <input type="text" id="input-nickname" class="w-full px-3 py-2 border border-slate-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-teal-500 text-sm mb-4" placeholder="例：謎解き太郎">
+            <button onclick="saveNickname()" class="w-full bg-teal-600 hover:bg-teal-500 text-white font-medium py-2 rounded-xl text-sm shadow-sm">決定</button>
+        </div>
+    </div>
+
+    <div id="modal-add" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-slate-900">新しい公演スケジュールを追加</h3>
+                <button onclick="closeAddModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <form id="form-add-event" class="space-y-4" onsubmit="addEvent(event)">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">公演名 *</label>
+                    <input type="text" id="event-title" required class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">主催・団体名</label>
+                    <input type="text" id="event-organizer" placeholder="例：SCRAP, タカラッシュ" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">開催日 *</label>
+                        <input type="date" id="event-date" required class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">時間</label>
+                        <input type="time" id="event-time" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">会場 / 場所</label>
+                    <input type="text" id="event-location" placeholder="例：新宿、オンライン" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">一言メモ・コメント</label>
+                    <textarea id="event-memo" rows="2" placeholder="残り何人募集！、終わったあとご飯行きましょう、など" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500"></textarea>
+                </div>
+                <button type="submit" class="w-full bg-teal-600 hover:bg-teal-500 text-white font-medium py-2.5 rounded-xl text-sm shadow-sm">ボードに追加する</button>
+            </form>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getDatabase, ref, set, push, onValue, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+        // あなたが提供してくれたFirebaseの設定情報
+        const firebaseConfig = {
+            apiKey: "AIzaSyC25ccFc1wQGABP0bkep1NWsQZlS0hj-AI",
+            authDomain: "nazo-schedule.firebaseapp.com",
+            databaseURL: "https://nazo-schedule-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "nazo-schedule",
+            storageBucket: "nazo-schedule.firebasestorage.app",
+            messagingSenderId: "220327711579",
+            appId: "1:220327711579:web:7b13b8983aaf57b073c07e",
+            measurementId: "G-FTDZ5K0D19"
+        };
+
+        // Firebase初期化
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const eventsRef = ref(db, 'events');
+
+        // アプリケーション状態の管理
+        let currentNickname = localStorage.getItem('nazo_nickname') || '';
+        let currentView = 'list';
+        let currentFilter = 'all';
+        let allEvents = {};
+        let currentDate = new Date(); // カレンダー用
+
+        // 初期セットアップ
+        window.addEventListener('DOMContentLoaded', () => {
+            if (!currentNickname) {
+                openNameModal();
+            } else {
+                document.getElementById('current-user-display').textContent = currentNickname;
+            }
+
+            // Firebaseからリアルタイムでデータを取得・監視
+            onValue(eventsRef, (snapshot) => {
+                allEvents = snapshot.val() || {};
+                renderBoard();
+                updateMyStatusSummary();
+            });
+        });
+
+        // データの描画メイン処理
+        function renderBoard() {
+            if (currentView === 'list') {
+                renderListView();
+            } else {
+                renderCalendarView();
+            }
+        }
+
+        // リストビューのレンダリング
+        function renderListView() {
+            const tbody = document.getElementById('schedule-list-tbody');
+            tbody.innerHTML = '';
+
+            const sortedEvents = Object.entries(allEvents).sort((a, b) => new Date(a[1].date + 'T' + (a[1].time || '00:00')) - new Date(b[1].date + 'T' + (b[1].time || '00:00')));
+
+            if (sortedEvents.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="p-8 text-center text-slate-400">登録されている公演はありません。上のボタンから追加してみましょう！</td></tr>`;
+                return;
+            }
+
+            sortedEvents.forEach(([key, event]) => {
+                // フィルター処理
+                const myStatus = (event.participants && event.participants[currentNickname]) ? event.participants[currentNickname] : '';
+                if (currentFilter === 'going' && myStatus !== 'going') return;
+                if (currentFilter === 'recruiting' && myStatus !== 'recruiting') return;
+
+                // 参加者のアバター生成
+                let membersHtml = '';
+                let statusCount = { going: 0, recruiting: 0, interested: 0 };
+                
+                if (event.participants) {
+                    Object.entries(event.participants).forEach(([name, status]) => {
+                        statusCount[status]++;
+                        let badgeColor = 'bg-slate-200 text-slate-700';
+                        if (status === 'going') badgeColor = 'bg-emerald-500 text-white';
+                        if (status === 'recruiting') badgeColor = 'bg-amber-500 text-white';
+                        if (status === 'interested') badgeColor = 'bg-blue-500 text-white';
+                        
+                        membersHtml += `<span class="inline-block text-xs px-2 py-0.5 rounded-sm font-medium mr-1 ${badgeColor}" title="${name}">${name}</span>`;
+                    });
+                }
+
+                const row = document.createElement('tr');
+                row.className = "hover:bg-slate-50 transition";
+                row.innerHTML = `
+                    <td class="p-4">
+                        <div class="font-bold text-slate-900">${escapeHtml(event.title)}</div>
+                        <div class="text-xs text-slate-500">${escapeHtml(event.organizer || '不明・その他')}</div>
+                        ${event.memo ? `<div class="text-xs bg-slate-100 text-slate-600 p-2 rounded-lg mt-1 max-w-md"><i class="fa-solid fa-comment text-slate-400 mr-1"></i>${escapeHtml(event.memo)}</div>` : ''}
+                    </td>
+                    <td class="p-4">
+                        <div class="font-medium text-slate-700"><i class="fa-regular fa-calendar mr-1"></i>${event.date} ${event.time || ''}</div>
+                        <div class="text-xs text-slate-500"><i class="fa-solid fa-location-dot mr-1"></i>${escapeHtml(event.location || '未定/オンライン')}</div>
+                    </td>
+                    <td class="p-4">
+                        <div class="flex flex-wrap gap-1">${membersHtml || '<span class="text-xs text-slate-400">参加者なし</span>'}</div>
+                    </td>
+                    <td class="p-4 text-right">
+                        <select onchange="updateStatus('${key}', this.value)" class="text-xs bg-white border border-slate-300 rounded-lg p-1.5 focus:ring-2 focus:ring-teal-500">
+                            <option value="" ${myStatus === '' ? 'selected' : ''}>▼ 参加表明する</option>
+                            <option value="going" ${myStatus === 'going' ? 'selected' : ''}>🟢 行く</option>
+                            <option value="recruiting" ${myStatus === 'recruiting' ? 'selected' : ''}>🟡 メンバー募集中</option>
+                            <option value="interested" ${myStatus === 'interested' ? 'selected' : ''}>🔵 興味あり</option>
+                        </select>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // カレンダービューのレンダリング
+        function renderCalendarView() {
+            const grid = document.getElementById('calendar-grid');
+            const title = document.getElementById('calendar-month-title');
+            grid.innerHTML = '';
+
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            title.textContent = `${year}年 ${month + 1}月`;
+
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+            // 空白のセル（前月分）
+            for (let i = 0; i < firstDay; i++) {
+                grid.appendChild(document.createElement('div'));
+            }
+
+            // 当月の日付
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const cell = document.createElement('div');
+                cell.className = "bg-slate-50 border border-slate-100 rounded-lg p-1 text-left min-h-[70px] overflow-y-auto flex flex-col";
+                cell.innerHTML = `<span class="text-xs font-bold text-slate-500">${day}</span>`;
+
+                // その日のイベントを探して表示
+                Object.entries(allEvents).forEach(([key, event]) => {
+                    if (event.date === dayStr) {
+                        const evDiv = document.createElement('div');
+                        evDiv.className = "text-[10px] bg-teal-50 text-teal-800 p-0.5 rounded-sm mt-0.5 truncate font-medium";
+                        evDiv.textContent = event.title;
+                        evDiv.title = event.title;
+                        cell.appendChild(evDiv);
+                    }
+                });
+
+                grid.appendChild(cell);
+            }
+        }
+
+        // ステータスのアップデート（Firebaseに保存）
+        window.updateStatus = function(eventKey, newStatus) {
+            if (!currentNickname) {
+                alert('先にニックネームを設定してください。');
+                openNameModal();
+                return;
+            }
+            const statusRef = ref(db, `events/${eventKey}/participants/${currentNickname}`);
+            set(statusRef, newStatus || null); // 空の場合は削除
+        };
+
+        // イベント追加処理（Firebaseに送信）
+        window.addEvent = function(e) {
+            e.preventDefault();
+            const title = document.getElementById('event-title').value;
+            const organizer = document.getElementById('event-organizer').value;
+            const date = document.getElementById('event-date').value;
+            const time = document.getElementById('event-time').value;
+            const location = document.getElementById('event-location').value;
+            const memo = document.getElementById('event-memo').value;
+
+            const newEventRef = push(eventsRef);
+            set(newEventRef, {
+                title, organizer, date, time, location, memo,
+                created_at: Date.now()
+            }).then(() => {
+                closeAddModal();
+                document.getElementById('form-add-event').reset();
+            });
+        };
+
+        // 個人のステータス集計
+        function updateMyStatusSummary() {
+            let going = 0, recruiting = 0, interested = 0;
+            Object.values(allEvents).forEach(event => {
+                if (event.participants && event.participants[currentNickname]) {
+                    const status = event.participants[currentNickname];
+                    if (status === 'going') going++;
+                    if (status === 'recruiting') recruiting++;
+                    if (status === 'interested') interested++;
+                }
+            });
+            document.getElementById('count-going').textContent = going;
+            document.getElementById('count-recruiting').textContent = recruiting;
+            document.getElementById('count-interested').textContent = interested;
+        }
+
+        // ニックネーム変更まわり
+        window.saveNickname = function() {
+            const name = document.getElementById('input-nickname').value.trim();
+            if (!name) return alert('名前を入力してください');
+            localStorage.setItem('nazo_nickname', name);
+            currentNickname = name;
+            document.getElementById('current-user-display').textContent = name;
+            document.getElementById('modal-name').classList.add('hidden');
+            renderBoard();
+            updateMyStatusSummary();
+        };
+
+        // ユーティリティ・表示制御関数
+        window.openNameModal = () => {
+            document.getElementById('input-nickname').value = currentNickname;
+            document.getElementById('modal-name').classList.remove('hidden');
+        };
+        window.openAddModal = () => document.getElementById('modal-add').classList.remove('hidden');
+        window.closeAddModal = () => document.getElementById('modal-add').classList.add('hidden');
+        
+        window.switchView = (view) => {
+            currentView = view;
+            document.getElementById('view-list').classList.toggle('hidden', view !== 'list');
+            document.getElementById('view-calendar').classList.toggle('hidden', view !== 'calendar');
+            document.getElementById('btn-view-list').className = view === 'list' ? "py-1.5 text-sm font-medium rounded-md bg-white text-slate-800 shadow-xs" : "py-1.5 text-sm font-medium rounded-md text-slate-600 hover:text-slate-800";
+            document.getElementById('btn-view-calendar').className = view === 'calendar' ? "py-1.5 text-sm font-medium rounded-md bg-white text-slate-800 shadow-xs" : "py-1.5 text-sm font-medium rounded-md text-slate-600 hover:text-slate-800";
+            renderBoard();
+        };
+
+        window.setFilter = (filter) => {
+            currentFilter = filter;
+            ['all', 'going', 'recruiting'].forEach(f => {
+                const btn = document.getElementById(`filter-${f}`);
+                if (f === filter) {
+                    btn.className = "w-full text-left px-3 py-2 rounded-lg text-sm font-medium bg-teal-50 text-teal-700";
+                } else {
+                    btn.className = "w-full text-left px-3 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50";
+                }
+            });
+            renderListView();
+        };
+
+        window.prevMonth = () => { currentDate.setMonth(currentDate.getMonth() - 1); renderCalendarView(); };
+        window.nextMonth = () => { currentDate.setMonth(currentDate.getMonth() + 1); renderCalendarView(); };
+        function escapeHtml(str) { return str ? str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;') : ''; }
+    </script>
+</body>
+</html>
